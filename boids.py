@@ -13,11 +13,12 @@ class Agent:
         self.x = random.randint(-boundary,boundary)
         self.y = random.randint(-boundary,boundary)
         angle = random.uniform(0, 2*math.pi)
-        self.vx = math.cos(angle) * 0.1
-        self.vy = math.sin(angle) * 0.1
+        self.vx = math.cos(angle) * 1.5
+        self.vy = math.sin(angle) * 1.5
         self.traits =  np.array([random.randint(0,10) for _ in range(3)], dtype=float)
         self.dominant = False
        
+    # boundaries wrap around(uncertain)
     def manage_boundary(self):
         if self.x < -boundary:
             self.x = self.x  % boundary
@@ -29,7 +30,8 @@ class Agent:
         if self.y > boundary:
             self.y = (self.y  % boundary) - boundary
     
-    def my_neighborhood(self, others, neighborhood_range):
+    # returns the neighborhood 
+    def my_neighborhood(self, others, neighborhood_range=3):
         neighborhood = [] 
         for other in others:
             if other == self:
@@ -37,8 +39,13 @@ class Agent:
             else:
                 if math.hypot(other.x - self.x, other.y - self.y) < neighborhood_range:
                     neighborhood.append(other)        
-        return neighborhood
-       
+        return neighborhood    
+    
+    # the agent that has the highest value for a given trait influences that same trait 
+    # across the rest of the group — so that trait increases 
+    # for everyone. Then, in return, I calculate the average of
+    # all traits across the other agents, and the trait with the highest 
+    # average influences the dominant agent back.
     def influence(self, others):
         neighborhood = others
         avg_t = np.zeros(len(self.traits), dtype=float)
@@ -53,7 +60,7 @@ class Agent:
             dominant_t_index = np.argmax(self.traits)
             dominant_agent = self
 
-            
+            # finding the dominant agent who the hight value of any trait
             for neighbor in neighborhood:
                 if max(neighbor.traits) > dominant_t:
                     dominant_agent = neighbor
@@ -61,32 +68,35 @@ class Agent:
                     dominant_t_index = np.argmax(neighbor.traits)                
                 avg_t += np.array(neighbor.traits)
             
+           # subtracting the dominant agent's traits to get the averages
             avg_t -= np.array(dominant_agent.traits)
             dominant_agent.dominant = True
             
             if len(neighborhood) > 1:
                 avg_t = avg_t / (len(neighborhood) - 1)
             
-                for neighbor in neighborhood:
-                    if neighbor == dominant_agent:
-                        neighbor.traits[np.argmax(avg_t)] *= 1.5
+                for agent in neighborhood:
+                    #  average 
+                    if agent == dominant_agent:
+                        agent.traits[np.argmax(avg_t)] *= 1.5
                     else:
-                        neighbor.traits[dominant_t_index] *= 1.5
+                        agent.traits[dominant_t_index] *= 1.5
                                             
-                    trait_sum = np.sum(neighbor.traits)
-                    if trait_sum > 0:  # Prevent division by zero
-                        neighbor.traits = neighbor.traits / trait_sum
+                    trait_sum = np.sum(agent.traits)
+                    if trait_sum > 0:  
+                        agent.traits = agent.traits / trait_sum
             return dominant_agent
 
-    def follow(self, others, boid):
+    # others to follow a certain agent
+    def follow(self, others, boid, factor=0.5):
         neighborhood = others
         neighborhood.append(self)
         for neighbor in neighborhood:
             if neighbor == boid:
                 continue
             else:
-                neighbor.vx += (boid.vx - neighbor.vx) * 0.5
-                neighbor.vy += (boid.vy - neighbor.vy) * 0.5
+                neighbor.vx += (boid.vx - neighbor.vx) * factor
+                neighbor.vy += (boid.vy - neighbor.vy) * factor
                                              
     def alignment(self, others, alignment_factor=1):
         neighborhood = others
@@ -139,9 +149,9 @@ class Agent:
             cohesion_vy += (avg_y - self.y) * cohesion_factor
         return cohesion_vx, cohesion_vy
     
-    def move(self, others, speed=100):
+    def move(self, others,neighborhood_range, speed=1):
         
-        neighborhood = self.my_neighborhood(others)
+        neighborhood = self.my_neighborhood(others, neighborhood_range)
         
         vx1, vy1 = self.alignment(neighborhood,alignment_factor=0)
         vx2, vy2 = self.separation(neighborhood,separation_factor=0)
@@ -164,7 +174,6 @@ class Agent:
         return [self.x, self.y]
  
 num_agents = 100
-neighborhood_range = 2
 collide_range = 2
 boundary = 100
 
@@ -179,7 +188,7 @@ scat = ax.scatter([],[], s=20)
 
 def update(frame):
     for agent in agents:
-        agent.move(agents, speed=0.5)
+        agent.move(agents, neighborhood_range=10)
     
     points_to_show = [[agent.x, agent.y] for agent in agents]
     colors = ['red' if agent.dominant else 'blue' for agent in agents]
@@ -191,3 +200,4 @@ def update(frame):
 anim = FuncAnimation(fig, update, frames=200, interval=100,  repeat=True)
 
 plt.show()
+
