@@ -2,6 +2,10 @@ from matplotlib.animation import FuncAnimation
 import matplotlib.pyplot as plt 
 import math
 import random
+import numpy as np
+
+# A - B: a vector points from B to A
+
 
 class Agent:
     
@@ -9,11 +13,10 @@ class Agent:
         self.x = random.randint(-boundary,boundary)
         self.y = random.randint(-boundary,boundary)
         angle = random.uniform(0, 2*math.pi)
-        self.vx = math.cos(angle) * 0.5
-        self.vy = math.sin(angle) * 0.5
-        self.t1 = random.randint(0,10)
-        self.t2 = random.randint(0,10)
-        self.t2 = random.randint(0,10)
+        self.vx = math.cos(angle) * 0.1
+        self.vy = math.sin(angle) * 0.1
+        self.traits =  np.array([random.randint(0,10) for _ in range(3)], dtype=float)
+        self.dominant = False
        
     def manage_boundary(self):
         if self.x < -boundary:
@@ -26,11 +29,7 @@ class Agent:
         if self.y > boundary:
             self.y = (self.y  % boundary) - boundary
     
-    # to implement
-    def follow(self, other):
-        pass
-    
-    def my_neighborhood(self, others):
+    def my_neighborhood(self, others, neighborhood_range):
         neighborhood = [] 
         for other in others:
             if other == self:
@@ -39,29 +38,63 @@ class Agent:
                 if math.hypot(other.x - self.x, other.y - self.y) < neighborhood_range:
                     neighborhood.append(other)        
         return neighborhood
-    
-    # opposite of separation, if close touch
-    # def collide(self, others):
-    #     neighborhood = self.my_neighborhood(others)
-    #     for neighbor in neighborhood:
-    #         if  math.hypot(self.x - neighbor.x, self.y - neighbor.y) < collide_range:
-    #             self.vx += self.x + neighbor.x
-    #             self.vy += self.y + neighbor.y
-    
-    # collision to be simulated
-    def separation(self, others):
-        neighborhood = self.my_neighborhood(others)
-        for neighbor in neighborhood:
-            if  math.hypot(self.x - neighbor.x, self.y - neighbor.y) < collide_range:
-                self.vx += self.x - neighbor.x
-                self.vy += self.y - neighbor.y
+       
+    def influence(self, others):
+        neighborhood = others
+        avg_t = np.zeros(len(self.traits), dtype=float)
+                        
+        if len(neighborhood) > 0:
+            neighborhood.append(self)
+            
+            for neighbor in neighborhood:
+                neighbor.dominant = False
+            
+            dominant_t = max(self.traits)
+            dominant_t_index = np.argmax(self.traits)
+            dominant_agent = self
 
-    
-    def alignment(self, others):
-        # pass
-        neighborhood = self.my_neighborhood(others)
+            
+            for neighbor in neighborhood:
+                if max(neighbor.traits) > dominant_t:
+                    dominant_agent = neighbor
+                    dominant_t = max(neighbor.traits)
+                    dominant_t_index = np.argmax(neighbor.traits)                
+                avg_t += np.array(neighbor.traits)
+            
+            avg_t -= np.array(dominant_agent.traits)
+            dominant_agent.dominant = True
+            
+            if len(neighborhood) > 1:
+                avg_t = avg_t / (len(neighborhood) - 1)
+            
+                for neighbor in neighborhood:
+                    if neighbor == dominant_agent:
+                        neighbor.traits[np.argmax(avg_t)] *= 1.5
+                    else:
+                        neighbor.traits[dominant_t_index] *= 1.5
+                                            
+                    trait_sum = np.sum(neighbor.traits)
+                    if trait_sum > 0:  # Prevent division by zero
+                        neighbor.traits = neighbor.traits / trait_sum
+            return dominant_agent
+
+    def follow(self, others, boid):
+        neighborhood = others
+        neighborhood.append(self)
+        for neighbor in neighborhood:
+            if neighbor == boid:
+                continue
+            else:
+                neighbor.vx += (boid.vx - neighbor.vx) * 0.5
+                neighbor.vy += (boid.vy - neighbor.vy) * 0.5
+                                             
+    def alignment(self, others, alignment_factor=1):
+        neighborhood = others
         avg_vx = 0 
         avg_vy = 0
+        alig_vx = 0
+        alig_vy = 0
+        
         for neighbor in neighborhood:
             avg_vx += neighbor.vx
             avg_vy += neighbor.vy
@@ -69,15 +102,31 @@ class Agent:
         if len(neighborhood) > 0:
             avg_vx /= len(neighborhood)
             avg_vy /= len(neighborhood)
+            alig_vx += (avg_vx - self.vx) * alignment_factor
+            alig_vy += (avg_vy - self.vy) * alignment_factor
         # a - b -> what will take b to reach a  
-        self.vx += (avg_vx - self.vx) 
-        self.vy += (avg_vy - self.vy) 
-        
+        return alig_vx, alig_vy
     
-    def cohesion(self, others):
-        neighborhood = self.my_neighborhood(others)
+    def separation(self, others, separation_factor=1):
+        neighborhood = others
+        sep_vx = 0
+        sep_vy = 0
+        for neighbor in neighborhood:
+            if  math.hypot(self.x - neighbor.x, self.y - neighbor.y) < collide_range:
+                # points from neighbor to self 
+                sep_vx += (self.x - neighbor.x) * separation_factor
+                sep_vy += (self.y - neighbor.y) * separation_factor
+                
+            #why adding directly to the velocity would be problematic, and would be a difference if 
+            #multiplied the factor outside the loop instead of inside?
+        return sep_vx, sep_vy
+        
+    def cohesion(self, others, cohesion_factor=1):
+        neighborhood = others
         avg_x = 0
         avg_y = 0
+        cohesion_vx = 0
+        cohesion_vy = 0 
         
         for neighbor in neighborhood:
             avg_x += neighbor.x
@@ -86,45 +135,38 @@ class Agent:
         if len(neighborhood) > 0:
             avg_x /= len(neighborhood)
             avg_y /= len(neighborhood)
-        
-        self.vx += (avg_x - self.x)
-        self.vy += (avg_y - self.y) 
-      
-    def boids(self):
-        pass
-        # calculate the new vector 
+            cohesion_vx += (avg_x - self.x) * cohesion_factor
+            cohesion_vy += (avg_y - self.y) * cohesion_factor
+        return cohesion_vx, cohesion_vy
     
-    def move(self, others, speed=1):
+    def move(self, others, speed=100):
         
-        # if abs(self.x - others[0].x) < 2:
-        #     self.follow(others[0])             
-        # else:
-        #     orientation = random.uniform(0,2*math.pi)
-                
-        #     self.x += math.cos(orientation) * speed
-        #     self.y += math.sin(orientation) * speed
+        neighborhood = self.my_neighborhood(others)
         
-        # orientation = random.uniform(0,2*math.pi)          
-        # self.x += math.cos(orientation) * speed
-        # self.y += math.sin(orientation) * speed
+        vx1, vy1 = self.alignment(neighborhood,alignment_factor=0)
+        vx2, vy2 = self.separation(neighborhood,separation_factor=0)
+        vx3, vy3 = self.cohesion(neighborhood, cohesion_factor=0)
         
-        self.alignment(others)
-        self.separation(others)
-        self.cohesion(others)
+        dominant_agent = self.influence(neighborhood)
         
-        self.x += self.vx * steering_factor
-        self.y += self.vy * steering_factor
+        if dominant_agent is not None:
+            self.follow(neighborhood, dominant_agent)
+        
+        # self.vx += vx1 + vx2 + vx3
+        # self.vy += vy1 + vy2 + vy3
+
+        
+        self.x += self.vx 
+        self.y += self.vy 
         
         self.manage_boundary()
-        
         
         return [self.x, self.y]
  
 num_agents = 100
-neighborhood_range = 5
-collide_range = 3
-steering_factor = 0.01
-boundary = 50
+neighborhood_range = 2
+collide_range = 2
+boundary = 100
 
 
 fig, ax = plt.subplots()
@@ -140,10 +182,12 @@ def update(frame):
         agent.move(agents, speed=0.5)
     
     points_to_show = [[agent.x, agent.y] for agent in agents]
+    colors = ['red' if agent.dominant else 'blue' for agent in agents]
     scat.set_offsets(points_to_show)
+    scat.set_color(colors)
 
     return scat
         
-anim = FuncAnimation(fig, update, frames=2000, interval=100,  repeat=True)
+anim = FuncAnimation(fig, update, frames=200, interval=100,  repeat=True)
 
 plt.show()
