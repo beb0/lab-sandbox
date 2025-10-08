@@ -99,6 +99,16 @@ class Agent:
             vx = (boid.x - self.x) * follow_factor
             vy = (boid.y - self.y) * follow_factor
         return vx, vy
+    
+    def follow_leader(self, neighborhood, follow_factor):
+        vx = 0
+        vy = 0
+        for neighbor in neighborhood:
+            if neighbor.dominant is True:
+                vx = (neighbor.x - self.x) * follow_factor
+                vy = (neighbor.y - self.y) * follow_factor
+                break
+        return vx, vy
                                              
     def alignment(self, others, alignment_factor=1):
         neighborhood = others
@@ -159,7 +169,7 @@ class Agent:
             vy *= scale
         return vx, vy
     
-    def move(self, others, neighborhood_range, max_speed=1):
+    def move(self, others, neighborhood_range, max_speed=3):
         
         # those who have 
         neighborhood = self.my_neighborhood(others, neighborhood_range)
@@ -169,21 +179,29 @@ class Agent:
         vx3, vy3 = 0,0
         vx4, vy4 = 0,0
         
-        vx1, vy1 = self.alignment(neighborhood,alignment_factor=1)
-        vx2, vy2 = self.separation(neighborhood,separation_factor=3)
-        vx3, vy3 = self.cohesion(neighborhood, cohesion_factor=1)
+        # vx1, vy1 = self.alignment(neighborhood,alignment_factor=1)
+        vx2, vy2 = self.separation(neighborhood,separation_factor=1)
+        # vx3, vy3 = self.cohesion(neighborhood, cohesion_factor=1)
         
-        # dominant_agent = self.influence(neighborhood)
+        self.influence(neighborhood)
+            
 
-        # if dominant_agent is not None:
-        #     vx4, vy4 = self.follow(neighborhood, dominant_agent, follow_factor=0.1)
+        # if dominant_agent is not None :
+        #     vx4, vy4 = self.follow(neighborhood, dominant_agent, follow_factor=1)
         
         
         # Accumilating is what keeps them moving, if we don't accumilate it will run until one state is reached
-        self.vx += vx1 + vx2 + vx3 + vx4
-        self.vy += vy1 + vy2 + vy3 + vy4
+        if self.dominant is True:
+            angle = random.uniform(0, 2*math.pi)
+            self.vx += math.cos(angle) * 0.5
+            self.vy += math.sin(angle) * 0.5
+        else:
+            vx4, vy4 = self.follow_leader(neighborhood, follow_factor=1)
+            self.vx = vx1 + vx2 + vx3 + vx4
+            self.vy = vy1 + vy2 + vy3 + vy4
+
         
-        # self.vx, self.vy = self.speed_cap(self.vx, self.vy, max_speed=3)
+        self.vx, self.vy = self.speed_cap(self.vx, self.vy, max_speed)
         
         self.x += self.vx 
         self.y += self.vy 
@@ -202,12 +220,18 @@ ax.set_xlim(-boundary,boundary)
 ax.set_ylim(-boundary,boundary)
 
 agents = [ Agent() for _ in range(num_agents)]
+# agents[8].dominant = True
+# agents[7].dominant = True
+# agents[9].dominant = True
+# agents[10].dominant = True
+# agents[1].dominant = True
+# agents[80].dominant = True
 scat = ax.scatter([],[], s=20)
 
 
 def update(frames):
     for agent in agents:
-        agent.move(agents, neighborhood_range=10)
+        agent.move(agents, neighborhood_range=100)
     
     points_to_show = [[agent.x, agent.y] for agent in agents]
     colors = ['red' if agent.dominant else 'blue' for agent in agents]

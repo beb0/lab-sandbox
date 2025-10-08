@@ -1,70 +1,204 @@
+from matplotlib.animation import FuncAnimation
+import matplotlib.pyplot as plt 
+import math
+import random
 import numpy as np
-import matplotlib.pyplot as plt
 
 class Agent:
-    def __init__(self, position, speed):
-        self.position = position
-        self.speed = speed
-
-    def move(self, angle):
-        dx = self.speed * np.cos(angle)
-        dy = self.speed * np.sin(angle)
-        self.position = (self.position[0] + dx, self.position[1] + dy)
+    
+    def __init__(self):
+        self.x = random.randint(-boundary,boundary)
+        self.y = random.randint(-boundary,boundary)
+        angle = random.uniform(0, 2*math.pi)
+        self.vx = math.cos(angle) * 0.5
+        self.vy = math.sin(angle) * 0.5
+        self.traits =  np.array([random.randint(0,10) for _ in range(3)])
+       
+    def manage_boundary(self):
+        if self.x < -boundary:
+            self.x = self.x  % boundary
+        if self.x > boundary:
+            self.x = (self.x  % boundary) - boundary
+            
+        if self.y < -boundary:
+            self.y = self.y  % boundary
+        if self.y > boundary:
+            self.y = (self.y  % boundary) - boundary
+    
+    # to implement
+    def follow(self, others, boid):
+        neighborhood = others
         
-
-# 3ayez abda2 el simulation hena
-if __name__ == "__main__":
-    # Create two agents with different starting positions
-    agent1 = Agent(position=(0, 0), speed=0.1)
-    agent2 = Agent(position=(1, 1), speed=0.1)  # Different starting position
+        for neighbor in neighborhood:
+            neighbor.vx += (boid.vx - neighbor.vx) * 0.5
+            neighbor.vy += (boid.vy - neighbor.vy) * 0.5
+            
     
-    positions1 = [agent1.position]
-    positions2 = [agent2.position]
+    def my_neighborhood(self, others):
+        neighborhood = [] 
+        for other in others:
+            if other == self:
+                continue
+            else:
+                if math.hypot(other.x - self.x, other.y - self.y) < neighborhood_range:
+                    neighborhood.append(other)        
+        return neighborhood
+    
+    # opposite of separation, if close touch
+    # def collide(self, others):
+    #     neighborhood = self.my_neighborhood(others)
+    #     for neighbor in neighborhood:
+    #         if  math.hypot(self.x - neighbor.x, self.y - neighbor.y) < collide_range:
+    #             self.vx += self.x + neighbor.x
+    #             self.vy += self.y + neighbor.y
+    
+    # collision to be simulated
+    def separation(self, others):
+        neighborhood = self.my_neighborhood(others)
+        for neighbor in neighborhood:
+            if  math.hypot(self.x - neighbor.x, self.y - neighbor.y) < collide_range:
+                self.vx += self.x - neighbor.x
+                self.vy += self.y - neighbor.y
 
-    for _ in range(100):
-        # Move both agents with random angles
-        agent1.move(angle=np.deg2rad(np.random.randint(0, 360)))
-        agent2.move(angle=np.deg2rad(np.random.randint(0, 360)))
+    def influence(self, others):
+        neighborhood = others
+        avg_t = np.zeros(len(self.traits))
         
-        positions1.append(agent1.position)
-        positions2.append(agent2.position)
+        # to start acting only if I am in a circle
+        if len(neighborhood) > 0:
+            neighborhood.append(self)
+            
+            dominant_t = 0
+            dominant_agent = self
+            
+            for neighbor in neighborhood:
+                if max(neighbor.traits) > dominant_t:
+                    dominant_t = max(neighbor.traits)
+                    dominant_t_index = np.argmax(neighbor.traits)
+                    dominant_agent = neighbor                
+                avg_t += np.array(neighbor.traits)
+            print("average_traits before removing the dom", avg_t)
+            print("agent traits to be remoed", dominant_agent.traits)
+            
+            avg_t -= np.array(dominant_agent.traits)
+            
+            print("average_traits after removing the dom", avg_t)
+            
+            if len(neighborhood) > 1:
+                avg_t = avg_t / (len(neighborhood) - 1)
+            
+            print("Dominant Agent name:", dominant_agent.name)
+            print("Dominant Agent trait index", dominant_t_index)
+            print("Dominant Agent trait value", dominant_agent.traits[dominant_t_index])
+            print("averages of other traits", avg_t)
+            print("Highst average trait index", np.argmax(avg_t))
+            
+            
+            print("Neighborhood before any influence:")
+            for neighbor in neighborhood:    
+                print(neighbor.name, neighbor.traits)
+            
+            print("***************")
+            print("Neighborhood after influence")
+            for neighbor in neighborhood:
+                if neighbor == dominant_agent:
+                    neighbor.traits[np.argmax(avg_t)] *= 1.5
+                else:
+                    neighbor.traits[dominant_t_index] *= 1.5
+                print(neighbor.name, neighbor.traits)
+            return dominant_agent     
+                         
+                
+    
+    def alignment(self, others):
+        # pass
+        neighborhood = self.my_neighborhood(others)
+        avg_vx = 0 
+        avg_vy = 0
+        for neighbor in neighborhood:
+            avg_vx += neighbor.vx
+            avg_vy += neighbor.vy
+            
+        if len(neighborhood) > 0:
+            avg_vx /= len(neighborhood)
+            avg_vy /= len(neighborhood)
+        # a - b -> what will take b to reach a  
+        self.vx += (avg_vx - self.vx) 
+        self.vy += (avg_vy - self.vy) 
+        
+    
+    def cohesion(self, others):
+        neighborhood = self.my_neighborhood(others)
+        avg_x = 0
+        avg_y = 0
+        
+        for neighbor in neighborhood:
+            avg_x += neighbor.x
+            avg_y += neighbor.y
+        
+        if len(neighborhood) > 0:
+            avg_x /= len(neighborhood)
+            avg_y /= len(neighborhood)
+        
+        self.vx += (avg_x - self.x)
+        self.vy += (avg_y - self.y) 
+      
+    def boids(self):
+        pass
+        # calculate the new vector 
+    
+    def move(self, others, speed=1):
+        
+        # if abs(self.x - others[0].x) < 2:
+        #     self.follow(others[0])             
+        # else:
+        #     orientation = random.uniform(0,2*math.pi)
+                
+        #     self.x += math.cos(orientation) * speed
+        #     self.y += math.sin(orientation) * speed
+        
+        # orientation = random.uniform(0,2*math.pi)          
+        # self.x += math.cos(orientation) * speed
+        # self.y += math.sin(orientation) * speed
+        
+        self.alignment(others)
+        self.separation(others)
+        self.cohesion(others)
+        
+        self.x += self.vx * steering_factor
+        self.y += self.vy * steering_factor
+        
+        self.manage_boundary()
+        
+        self.personality(others)
+        
+        
+        return [self.x, self.y]
+ 
+num_agents = 3
+neighborhood_range = 5
+collide_range = 3
+steering_factor = 0.01
+boundary = 50
 
-    positions1 = np.array(positions1)
-    positions2 = np.array(positions2)
+
+fig, ax = plt.subplots()
+ax.set_xlim(-boundary,boundary)
+ax.set_ylim(-boundary,boundary)
+
+agents = [ Agent() for _ in range(num_agents)]
+scat = ax.scatter([],[], s=20)
+
+
+def update(frame):
+    for agent in agents:
+        agent.move(agents, speed=0.5)
     
-    # --- PLOTTING CODE FOR TWO AGENTS ---
-    plt.figure(figsize=(10, 6))
-    
-    # Plot first agent (blue)
-    plt.plot(positions1[:, 0], positions1[:, 1], 
-             linestyle='-', 
-             linewidth=1.5, 
-             marker='', 
-             color='blue',
-             alpha=0.8,
-             label='Agent 1 Path')
-    
-    # Plot second agent (red)
-    plt.plot(positions2[:, 0], positions2[:, 1], 
-             linestyle='-', 
-             linewidth=1.5, 
-             marker='', 
-             color='red',
-             alpha=0.8,
-             label='Agent 2 Path')
-    
-    # Mark the start and end points for Agent 1
-    plt.plot(positions1[0, 0], positions1[0, 1], 'go', markersize=8, label='Agent 1 Start')
-    plt.plot(positions1[-1, 0], positions1[-1, 1], 'bo', markersize=8, label='Agent 1 End')
-    
-    # Mark the start and end points for Agent 2
-    plt.plot(positions2[0, 0], positions2[0, 1], 'yo', markersize=8, label='Agent 2 Start')  # Yellow
-    plt.plot(positions2[-1, 0], positions2[-1, 1], 'ro', markersize=8, label='Agent 2 End')   # Red
-    
-    plt.title("Dual Agent Random Walk Simulation")
-    plt.xlabel("X Position")
-    plt.ylabel("Y Position")
-    plt.axis('equal')  # Important for proper scaling
-    plt.grid(True, linestyle='--', alpha=0.7)
-    plt.legend()
-    plt.show()
+    points_to_show = [[agent.x, agent.y] for agent in agents]
+    scat.set_offsets(points_to_show)
+
+    return scat
+        
+anim = FuncAnimation(fig, update, frames=2000, interval=100,  repeat=True)
+
+plt.show()
