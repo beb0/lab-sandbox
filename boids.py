@@ -13,8 +13,10 @@ class Agent:
         self.x = random.randint(-boundary,boundary)
         self.y = random.randint(-boundary,boundary)
         angle = random.uniform(0, 2*math.pi)
-        self.vx = math.cos(angle) * 1.5
-        self.vy = math.sin(angle) * 1.5
+        self.vx = math.cos(angle) * 0.1
+        self.vy = math.sin(angle) * 0.1
+        # self.vx = 0
+        # self.vy = 0
         self.traits =  np.array([random.randint(0,10) for _ in range(3)], dtype=float)
         self.dominant = False
        
@@ -31,7 +33,7 @@ class Agent:
             self.y = (self.y  % boundary) - boundary
     
     # returns the neighborhood 
-    def my_neighborhood(self, others, neighborhood_range=3):
+    def my_neighborhood(self, others, neighborhood_range=1):
         neighborhood = [] 
         for other in others:
             if other == self:
@@ -46,57 +48,57 @@ class Agent:
     # for everyone. Then, in return, I calculate the average of
     # all traits across the other agents, and the trait with the highest 
     # average influences the dominant agent back.
-    def influence(self, others):
-        neighborhood = others
+    def influence(self, neighborhood): 
         avg_t = np.zeros(len(self.traits), dtype=float)
                         
         if len(neighborhood) > 0:
             neighborhood.append(self)
-            
-            for neighbor in neighborhood:
-                neighbor.dominant = False
-            
-            dominant_t = max(self.traits)
-            dominant_t_index = np.argmax(self.traits)
             dominant_agent = self
 
-            # finding the dominant agent who the hight value of any trait
+            # finding the dominant agent who have the highst single value of all traits
             for neighbor in neighborhood:
-                if max(neighbor.traits) > dominant_t:
-                    dominant_agent = neighbor
-                    dominant_t = max(neighbor.traits)
-                    dominant_t_index = np.argmax(neighbor.traits)                
+                neighbor.dominant = False
+                if max(neighbor.traits) > max(dominant_agent.traits):
+                    dominant_agent = neighbor             
                 avg_t += np.array(neighbor.traits)
             
            # subtracting the dominant agent's traits to get the averages
             avg_t -= np.array(dominant_agent.traits)
             dominant_agent.dominant = True
             
+            
+            # angle = random.uniform(0, 2*math.pi)
+            # dominant_agent.vx = math.cos(angle) 
+            # dominant_agent.vy = math.sin(angle) 
+            
             if len(neighborhood) > 1:
                 avg_t = avg_t / (len(neighborhood) - 1)
-            
+
+                
+                max_value = 1000
+                
                 for agent in neighborhood:
                     #  average 
                     if agent == dominant_agent:
                         agent.traits[np.argmax(avg_t)] *= 1.5
                     else:
-                        agent.traits[dominant_t_index] *= 1.5
+                        agent.traits[np.argmax(dominant_agent.traits)] *= 1.5
                                             
-                    trait_sum = np.sum(agent.traits)
-                    if trait_sum > 0:  
-                        agent.traits = agent.traits / trait_sum
+                    max_abs = np.max(np.abs(agent.traits))
+                    if max_abs > max_value:
+                        factor = max_value / max_abs
+                        agent.traits *= factor
             return dominant_agent
 
     # others to follow a certain agent
-    def follow(self, others, boid, factor=0.5):
-        neighborhood = others
+    def follow(self, neighborhood, boid, follow_factor):
         neighborhood.append(self)
-        for neighbor in neighborhood:
-            if neighbor == boid:
-                continue
-            else:
-                neighbor.vx += (boid.vx - neighbor.vx) * factor
-                neighbor.vy += (boid.vy - neighbor.vy) * factor
+        vx = 0
+        vy = 0
+        if boid in neighborhood:
+            vx = (boid.x - self.x) * follow_factor
+            vy = (boid.y - self.y) * follow_factor
+        return vx, vy
                                              
     def alignment(self, others, alignment_factor=1):
         neighborhood = others
@@ -149,22 +151,39 @@ class Agent:
             cohesion_vy += (avg_y - self.y) * cohesion_factor
         return cohesion_vx, cohesion_vy
     
-    def move(self, others,neighborhood_range, speed=1):
+    def speed_cap(self, vx, vy, max_speed):
+        speed = (vx**2 + vy**2) ** 0.5
+        if speed > max_speed:
+            scale = max_speed / speed
+            vx *= scale
+            vy *= scale
+        return vx, vy
+    
+    def move(self, others, neighborhood_range, max_speed=1):
         
+        # those who have 
         neighborhood = self.my_neighborhood(others, neighborhood_range)
         
-        vx1, vy1 = self.alignment(neighborhood,alignment_factor=0)
-        vx2, vy2 = self.separation(neighborhood,separation_factor=0)
-        vx3, vy3 = self.cohesion(neighborhood, cohesion_factor=0)
+        vx1, vy1 = 0,0
+        vx2, vy2 = 0,0
+        vx3, vy3 = 0,0
+        vx4, vy4 = 0,0
         
-        dominant_agent = self.influence(neighborhood)
+        vx1, vy1 = self.alignment(neighborhood,alignment_factor=1)
+        vx2, vy2 = self.separation(neighborhood,separation_factor=3)
+        vx3, vy3 = self.cohesion(neighborhood, cohesion_factor=1)
         
-        if dominant_agent is not None:
-            self.follow(neighborhood, dominant_agent)
-        
-        # self.vx += vx1 + vx2 + vx3
-        # self.vy += vy1 + vy2 + vy3
+        # dominant_agent = self.influence(neighborhood)
 
+        # if dominant_agent is not None:
+        #     vx4, vy4 = self.follow(neighborhood, dominant_agent, follow_factor=0.1)
+        
+        
+        # Accumilating is what keeps them moving, if we don't accumilate it will run until one state is reached
+        self.vx += vx1 + vx2 + vx3 + vx4
+        self.vy += vy1 + vy2 + vy3 + vy4
+        
+        # self.vx, self.vy = self.speed_cap(self.vx, self.vy, max_speed=3)
         
         self.x += self.vx 
         self.y += self.vy 
@@ -186,7 +205,7 @@ agents = [ Agent() for _ in range(num_agents)]
 scat = ax.scatter([],[], s=20)
 
 
-def update(frame):
+def update(frames):
     for agent in agents:
         agent.move(agents, neighborhood_range=10)
     
