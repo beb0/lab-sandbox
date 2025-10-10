@@ -13,10 +13,10 @@ class Agent:
         self.x = random.randint(-boundary,boundary)
         self.y = random.randint(-boundary,boundary)
         angle = random.uniform(0, 2*math.pi)
-        self.vx = math.cos(angle) * 0.1
-        self.vy = math.sin(angle) * 0.1
-        # self.vx = 0
-        # self.vy = 0
+        # self.vx = math.cos(angle) * 0.1
+        # self.vy = math.sin(angle) * 0.1
+        self.vx = 0
+        self.vy = 0
         self.traits =  np.array([random.randint(0,10) for _ in range(3)], dtype=float)
         self.dominant = False
        
@@ -83,7 +83,8 @@ class Agent:
                         agent.traits[np.argmax(avg_t)] *= 1.5
                     else:
                         agent.traits[np.argmax(dominant_agent.traits)] *= 1.5
-                                            
+                          
+                    # uncertain because it doesn't retain the momentum                  
                     max_abs = np.max(np.abs(agent.traits))
                     if max_abs > max_value:
                         factor = max_value / max_abs
@@ -91,16 +92,16 @@ class Agent:
             return dominant_agent
 
     # others to follow a certain agent
-    def follow(self, neighborhood, boid, follow_factor):
-        neighborhood.append(self)
-        vx = 0
-        vy = 0
-        if boid in neighborhood:
-            vx = (boid.x - self.x) * follow_factor
-            vy = (boid.y - self.y) * follow_factor
-        return vx, vy
+    # def follow(self, neighborhood, boid, follow_factor):
+    #     neighborhood.append(self)
+    #     vx = 0
+    #     vy = 0
+    #     if boid in neighborhood:
+    #         vx = (boid.x - self.x) * follow_factor
+    #         vy = (boid.y - self.y) * follow_factor
+    #     return vx, vy
     
-    def follow_leader(self, neighborhood, follow_factor):
+    def follow(self, neighborhood, follow_factor):
         vx = 0
         vy = 0
         for neighbor in neighborhood:
@@ -129,7 +130,7 @@ class Agent:
         # a - b -> what will take b to reach a  
         return alig_vx, alig_vy
     
-    def separation(self, others, separation_factor=1):
+    def separation(self, others, collide_range=1, separation_factor=1):
         neighborhood = others
         sep_vx = 0
         sep_vy = 0
@@ -180,7 +181,7 @@ class Agent:
         vx4, vy4 = 0,0
         
         # vx1, vy1 = self.alignment(neighborhood,alignment_factor=1)
-        vx2, vy2 = self.separation(neighborhood,separation_factor=1)
+        vx2, vy2 = self.separation(neighborhood,collide_range=2, separation_factor=3)
         # vx3, vy3 = self.cohesion(neighborhood, cohesion_factor=1)
         
         self.influence(neighborhood)
@@ -193,10 +194,10 @@ class Agent:
         # Accumilating is what keeps them moving, if we don't accumilate it will run until one state is reached
         if self.dominant is True:
             angle = random.uniform(0, 2*math.pi)
-            self.vx += math.cos(angle) * 0.5
-            self.vy += math.sin(angle) * 0.5
+            self.vx += math.cos(angle) * 1
+            self.vy += math.sin(angle) * 1
         else:
-            vx4, vy4 = self.follow_leader(neighborhood, follow_factor=1)
+            vx4, vy4 = self.follow(neighborhood, follow_factor=1)
             self.vx = vx1 + vx2 + vx3 + vx4
             self.vy = vy1 + vy2 + vy3 + vy4
 
@@ -211,7 +212,6 @@ class Agent:
         return [self.x, self.y]
  
 num_agents = 100
-collide_range = 2
 boundary = 100
 
 
@@ -220,18 +220,12 @@ ax.set_xlim(-boundary,boundary)
 ax.set_ylim(-boundary,boundary)
 
 agents = [ Agent() for _ in range(num_agents)]
-# agents[8].dominant = True
-# agents[7].dominant = True
-# agents[9].dominant = True
-# agents[10].dominant = True
-# agents[1].dominant = True
-# agents[80].dominant = True
 scat = ax.scatter([],[], s=20)
 
 
 def update(frames):
     for agent in agents:
-        agent.move(agents, neighborhood_range=100)
+        agent.move(agents, neighborhood_range=30)
     
     points_to_show = [[agent.x, agent.y] for agent in agents]
     colors = ['red' if agent.dominant else 'blue' for agent in agents]
@@ -239,8 +233,8 @@ def update(frames):
     scat.set_color(colors)
 
     return scat
-        
-anim = FuncAnimation(fig, update, frames=200, interval=100,  repeat=True)
+     
+anim = FuncAnimation(fig, update, frames=5000000, interval=100)
 
 plt.show()
 
